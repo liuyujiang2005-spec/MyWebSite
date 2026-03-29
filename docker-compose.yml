@@ -1,0 +1,37 @@
+# 本地或云服务器一键启动：前端 3000 + 后端 3001 + SQLite 持久化卷
+# 使用：复制 env.example 为 .env 并填写后执行 docker compose up -d --build
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "3001:3001"
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      DEEPSEEK_API_BASE_URL: ${DEEPSEEK_API_BASE_URL:-https://api.deepseek.com/chat/completions}
+      PORT: "3001"
+      SQLITE_PATH: /data/app.sqlite
+    volumes:
+      - api-sqlite:/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+    restart: unless-stopped
+
+volumes:
+  api-sqlite:

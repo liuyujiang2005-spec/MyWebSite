@@ -1,0 +1,7 @@
+node_modules
+apps/web/.next
+.git
+**/.DS_Store
+*.log
+.env
+.env.*
