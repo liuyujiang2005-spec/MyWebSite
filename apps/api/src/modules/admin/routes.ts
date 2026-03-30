@@ -164,6 +164,160 @@ export function registerAdminRoutes(app: MinimalHttpApp, db: DatabaseSync): void
     });
   });
 
+  /**
+   * 管理员更新客户端订单基础信息，并同步到关联运单的同名字段。
+   */
+  app.post("/admin/orders/update", async (req, res) => {
+    const auth = requireRole(req, res, ["admin"]);
+    if (!auth) return;
+
+    const body = (req.body ?? {}) as {
+      orderId?: string;
+      itemName?: string;
+      transportMode?: "sea" | "land";
+      domesticTrackingNo?: string | null;
+      productQuantity?: number;
+      packageCount?: number;
+      packageUnit?: "bag" | "box";
+      weightKg?: number | null;
+      volumeM3?: number | null;
+      receivableAmountCny?: number | null;
+      receivableCurrency?: "CNY" | "THB";
+      shipDate?: string | null;
+    };
+
+    const orderId = body.orderId?.trim();
+    if (!orderId) {
+      fail(res, 400, "BAD_REQUEST", "orderId is required");
+      return;
+    }
+
+    const exists = db
+      .prepare("SELECT id FROM orders WHERE id = ? AND company_id = ?")
+      .get(orderId, auth.companyId) as { id: string } | undefined;
+    if (!exists) {
+      fail(res, 404, "NOT_FOUND", "order not found");
+      return;
+    }
+
+    const itemName = body.itemName?.trim();
+    if (!itemName) {
+      fail(res, 400, "BAD_REQUEST", "itemName is required");
+      return;
+    }
+
+    const productQuantity = Number(body.productQuantity);
+    const packageCount = Number(body.packageCount);
+    if (!Number.isFinite(productQuantity) || productQuantity < 0) {
+      fail(res, 400, "BAD_REQUEST", "invalid productQuantity");
+      return;
+    }
+    if (!Number.isFinite(packageCount) || packageCount < 0) {
+      fail(res, 400, "BAD_REQUEST", "invalid packageCount");
+      return;
+    }
+
+    const packageUnit = body.packageUnit === "bag" ? "bag" : "box";
+    const transportMode = body.transportMode === "land" ? "land" : "sea";
+    const domesticTrackingNo = body.domesticTrackingNo?.trim() || null;
+    const weightKg = body.weightKg === undefined || body.weightKg === null ? null : Number(body.weightKg);
+    const volumeM3 = body.volumeM3 === undefined || body.volumeM3 === null ? null : Number(body.volumeM3);
+    if (weightKg !== null && !Number.isFinite(weightKg)) {
+      fail(res, 400, "BAD_REQUEST", "invalid weightKg");
+      return;
+    }
+    if (volumeM3 !== null && !Number.isFinite(volumeM3)) {
+      fail(res, 400, "BAD_REQUEST", "invalid volumeM3");
+      return;
+    }
+
+    let receivableAmount: number | null = null;
+    if (body.receivableAmountCny !== undefined && body.receivableAmountCny !== null) {
+      const amount = Number(body.receivableAmountCny);
+      if (!Number.isFinite(amount) || amount < 0) {
+        fail(res, 400, "BAD_REQUEST", "invalid receivableAmountCny");
+        return;
+      }
+      receivableAmount = amount === 0 ? null : amount;
+    }
+    const receivableCurrency = body.receivableCurrency === "THB" ? "THB" : "CNY";
+
+    let shipDate: string | null = null;
+    if (body.shipDate !== undefined && body.shipDate !== null && String(body.shipDate).trim() !== "") {
+      const raw = String(body.shipDate).trim().slice(0, 10);
+      const parsed = new Date(`${raw}T00:00:00.000Z`);
+      if (Number.isNaN(parsed.getTime())) {
+        fail(res, 400, "BAD_REQUEST", "invalid shipDate");
+        return;
+      }
+      shipDate = raw;
+    }
+
+    const now = new Date().toISOString();
+    db.prepare(
+      `
+      UPDATE orders SET
+        item_name = ?,
+        transport_mode = ?,
+        domestic_tracking_no = ?,
+        product_quantity = ?,
+        package_count = ?,
+        package_unit = ?,
+        weight_kg = ?,
+        volume_m3 = ?,
+        receivable_amount_cny = ?,
+        receivable_currency = ?,
+        ship_date = ?,
+        updated_at = ?
+      WHERE id = ? AND company_id = ?
+      `,
+    ).run(
+      itemName,
+      transportMode,
+      domesticTrackingNo,
+      productQuantity,
+      packageCount,
+      packageUnit,
+      weightKg,
+      volumeM3,
+      receivableAmount,
+      receivableCurrency,
+      shipDate,
+      now,
+      orderId,
+      auth.companyId,
+    );
+
+    db.prepare(
+      `
+      UPDATE shipments SET
+        transport_mode = ?,
+        domestic_tracking_no = ?,
+        package_count = ?,
+        package_unit = ?,
+        weight_kg = ?,
+        volume_m3 = ?,
+        updated_at = ?
+      WHERE order_id = ? AND company_id = ?
+      `,
+    ).run(
+      transportMode,
+      domesticTrackingNo,
+      packageCount,
+      packageUnit,
+      weightKg,
+      volumeM3,
+      now,
+      orderId,
+      auth.companyId,
+    );
+
+    ok(res, {
+      orderId,
+      updatedAt: now,
+    });
+  });
+
   app.post("/admin/users", async (req, res) => {
     const auth = requireRole(req, res, ["admin"]);
     if (!auth) return;

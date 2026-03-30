@@ -14,6 +14,7 @@ import {
   fetchAdminStaff,
   fetchAdminClients,
   fetchAdminOrders,
+  updateAdminOrder,
   fetchAdminAiSessionMemory,
   fetchAdminAiKnowledgeGaps,
   clearAdminAiSessionMemory,
@@ -93,6 +94,20 @@ export default function AdminHomePage() {
   const [content, setContent] = useState("");
   const [staffPanelCollapsed, setStaffPanelCollapsed] = useState(false);
   const [ordersPanelCollapsed, setOrdersPanelCollapsed] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState("");
+  const [orderEditForm, setOrderEditForm] = useState({
+    itemName: "",
+    transportMode: "sea" as "sea" | "land",
+    domesticTrackingNo: "",
+    productQuantity: "",
+    packageCount: "",
+    packageUnit: "box" as "bag" | "box",
+    weightKg: "",
+    volumeM3: "",
+    receivableAmountCny: "",
+    receivableCurrency: "CNY" as "CNY" | "THB",
+    shipDate: "",
+  });
   const [staffForm, setStaffForm] = useState({ id: "", name: "", phone: "", password: "" });
   const [clientForm, setClientForm] = useState({ id: "", name: "", companyName: "", phone: "", email: "" });
   const [settingPasswordFor, setSettingPasswordFor] = useState<string | null>(null);
@@ -181,6 +196,66 @@ export default function AdminHomePage() {
     const list = await fetchAdminOrders();
     setOrderList(list);
   }, []);
+
+  /**
+   * 载入待编辑订单到表单，便于管理员修改客户端订单信息。
+   */
+  const startEditOrder = (order: AdminOrderItem) => {
+    setEditingOrderId(order.id);
+    setOrderEditForm({
+      itemName: order.itemName ?? "",
+      transportMode: order.transportMode === "land" ? "land" : "sea",
+      domesticTrackingNo: order.domesticTrackingNo ?? "",
+      productQuantity: String(order.productQuantity ?? 0),
+      packageCount: String(order.packageCount ?? 0),
+      packageUnit: order.packageUnit === "bag" ? "bag" : "box",
+      weightKg: order.weightKg === null || order.weightKg === undefined ? "" : String(order.weightKg),
+      volumeM3: order.volumeM3 === null || order.volumeM3 === undefined ? "" : String(order.volumeM3),
+      receivableAmountCny:
+        order.receivableAmountCny === null || order.receivableAmountCny === undefined ? "" : String(order.receivableAmountCny),
+      receivableCurrency: order.receivableCurrency === "THB" ? "THB" : "CNY",
+      shipDate: order.shipDate ?? "",
+    });
+  };
+
+  /**
+   * 保存管理员对客户端订单的编辑结果。
+   */
+  const submitOrderEdit = async () => {
+    if (!editingOrderId) {
+      setMessage("请先选择要编辑的订单。");
+      return;
+    }
+    if (!orderEditForm.itemName.trim()) {
+      setMessage("请填写品名。");
+      return;
+    }
+    setLoading(true);
+    setMessage("");
+    try {
+      await updateAdminOrder({
+        orderId: editingOrderId,
+        itemName: orderEditForm.itemName.trim(),
+        transportMode: orderEditForm.transportMode,
+        domesticTrackingNo: orderEditForm.domesticTrackingNo.trim() || undefined,
+        productQuantity: Number(orderEditForm.productQuantity || 0),
+        packageCount: Number(orderEditForm.packageCount || 0),
+        packageUnit: orderEditForm.packageUnit,
+        weightKg: orderEditForm.weightKg.trim() ? Number(orderEditForm.weightKg) : undefined,
+        volumeM3: orderEditForm.volumeM3.trim() ? Number(orderEditForm.volumeM3) : undefined,
+        receivableAmountCny: orderEditForm.receivableAmountCny.trim() ? Number(orderEditForm.receivableAmountCny) : undefined,
+        receivableCurrency: orderEditForm.receivableCurrency,
+        shipDate: orderEditForm.shipDate.trim() || undefined,
+      });
+      setToast("订单信息已更新");
+      await loadOrders();
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "保存失败";
+      setMessage(`保存失败：${text}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadSessionMemory = useCallback(async () => {
     const data = await fetchAdminAiSessionMemory({ limit: 200 });
@@ -898,6 +973,50 @@ export default function AdminHomePage() {
           <EmptyStateCard title="暂无订单" description="当前公司下暂无订单数据。" />
         ) : (
           <div style={{ overflowX: "auto" }}>
+            {editingOrderId ? (
+              <div style={{ ...cardStyle, marginBottom: 10, display: "grid", gap: 8 }}>
+                <div style={{ fontWeight: 700, color: "#0f172a" }}>正在编辑订单：{editingOrderId}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+                  <input value={orderEditForm.itemName} onChange={(e) => setOrderEditForm((v) => ({ ...v, itemName: e.target.value }))} placeholder="品名" style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }} />
+                  <select value={orderEditForm.transportMode} onChange={(e) => setOrderEditForm((v) => ({ ...v, transportMode: e.target.value as "sea" | "land" }))} style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}>
+                    <option value="sea">海运</option>
+                    <option value="land">陆运</option>
+                  </select>
+                  <input value={orderEditForm.domesticTrackingNo} onChange={(e) => setOrderEditForm((v) => ({ ...v, domesticTrackingNo: e.target.value }))} placeholder="国内快递单号" style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }} />
+                  <input value={orderEditForm.productQuantity} onChange={(e) => setOrderEditForm((v) => ({ ...v, productQuantity: e.target.value }))} placeholder="产品数量" style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }} />
+                  <input value={orderEditForm.packageCount} onChange={(e) => setOrderEditForm((v) => ({ ...v, packageCount: e.target.value }))} placeholder="件数" style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }} />
+                  <select value={orderEditForm.packageUnit} onChange={(e) => setOrderEditForm((v) => ({ ...v, packageUnit: e.target.value as "bag" | "box" }))} style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}>
+                    <option value="box">box</option>
+                    <option value="bag">bag</option>
+                  </select>
+                  <input value={orderEditForm.weightKg} onChange={(e) => setOrderEditForm((v) => ({ ...v, weightKg: e.target.value }))} placeholder="重量(kg)" style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }} />
+                  <input value={orderEditForm.volumeM3} onChange={(e) => setOrderEditForm((v) => ({ ...v, volumeM3: e.target.value }))} placeholder="体积(m3)" style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }} />
+                  <input value={orderEditForm.receivableAmountCny} onChange={(e) => setOrderEditForm((v) => ({ ...v, receivableAmountCny: e.target.value }))} placeholder="应收金额(CNY)" style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }} />
+                  <select value={orderEditForm.receivableCurrency} onChange={(e) => setOrderEditForm((v) => ({ ...v, receivableCurrency: e.target.value as "CNY" | "THB" }))} style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}>
+                    <option value="CNY">CNY</option>
+                    <option value="THB">THB</option>
+                  </select>
+                  <input type="date" value={orderEditForm.shipDate} onChange={(e) => setOrderEditForm((v) => ({ ...v, shipDate: e.target.value }))} style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }} />
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => void submitOrderEdit()}
+                    disabled={loading}
+                    style={{ border: "none", borderRadius: 8, padding: "8px 14px", color: "#fff", background: "#2563eb", cursor: "pointer" }}
+                  >
+                    保存订单编辑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingOrderId("")}
+                    style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 14px", background: "#fff", cursor: "pointer" }}
+                  >
+                    取消编辑
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid #e2e8f0", textAlign: "left" }}>
@@ -908,6 +1027,7 @@ export default function AdminHomePage() {
                   <th style={{ padding: "8px 6px" }}>审批状态</th>
                   <th style={{ padding: "8px 6px" }}>产品图</th>
                   <th style={{ padding: "8px 6px" }}>创建时间</th>
+                  <th style={{ padding: "8px 6px" }}>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -936,6 +1056,15 @@ export default function AdminHomePage() {
                       </div>
                     </td>
                     <td style={{ padding: "8px 6px", color: "#64748b" }}>{o.createdAt.slice(0, 16)}</td>
+                    <td style={{ padding: "8px 6px" }}>
+                      <button
+                        type="button"
+                        onClick={() => startEditOrder(o)}
+                        style={{ border: "1px solid #bfdbfe", borderRadius: 8, padding: "4px 10px", background: "#eff6ff", color: "#1d4ed8", cursor: "pointer", fontWeight: 700 }}
+                      >
+                        编辑
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -92,6 +92,8 @@ app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log("[api] GET  /admin/orders");
   // eslint-disable-next-line no-console
+  console.log("[api] POST /admin/orders/update");
+  // eslint-disable-next-line no-console
   console.log("[api] GET  /admin/lmp/rates");
   // eslint-disable-next-line no-console
   console.log("[api] POST /admin/lmp/rates");

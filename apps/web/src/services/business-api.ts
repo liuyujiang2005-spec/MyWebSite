@@ -843,6 +843,31 @@ export async function fetchAdminOrders(): Promise<AdminOrderItem[]> {
   return data.items;
 }
 
+/**
+ * 管理员更新客户端订单基础信息。
+ */
+export async function updateAdminOrder(payload: {
+  orderId: string;
+  itemName: string;
+  transportMode: "sea" | "land";
+  domesticTrackingNo?: string;
+  productQuantity: number;
+  packageCount: number;
+  packageUnit: "bag" | "box";
+  weightKg?: number;
+  volumeM3?: number;
+  receivableAmountCny?: number;
+  receivableCurrency?: "CNY" | "THB";
+  shipDate?: string;
+}): Promise<{ orderId: string; updatedAt: string }> {
+  const response = await fetch(`${apiBaseUrl()}/admin/orders/update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return parseApiResponse(response);
+}
+
 export async function createAdminStaff(payload: {
   id?: string;
   name: string;

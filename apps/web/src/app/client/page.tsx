@@ -77,7 +77,7 @@ export default function ClientHomePage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [toast, setToast] = useState("");
-  const [queryMode, setQueryMode] = useState<"unfinished" | "completed" | "all" | null>(null);
+  const [queryMode, setQueryMode] = useState<"unfinished" | "completed" | "all" | null>("all");
   const [queriedOrders, setQueriedOrders] = useState<OrderItem[]>([]);
   const [hasQueried, setHasQueried] = useState(false);
   const [pendingPrealerts, setPendingPrealerts] = useState<OrderItem[]>([]);
@@ -244,6 +244,27 @@ export default function ClientHomePage() {
   };
 
   /**
+   * 查询区默认加载：进入“我的订单查询”后自动展示全部订单。
+   */
+  const runDefaultAllOrderQuery = async () => {
+    if (loading) return;
+    setLoading(true);
+    setMessage("");
+    try {
+      const result = await fetchClientOrders();
+      setQueryMode("all");
+      setSearch(initialSearch);
+      setQueriedOrders(result);
+      setHasQueried(true);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "查询失败";
+      setMessage(`查询失败：${text}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
    * 切换订单查询分组（在途/已完成/全部）。
    */
   const changeQueryMode = (mode: "unfinished" | "completed" | "all") => {
@@ -269,6 +290,12 @@ export default function ClientHomePage() {
       setAiLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (activeSection !== "client-query") return;
+    if (hasQueried) return;
+    void runDefaultAllOrderQuery();
+  }, [activeSection, hasQueried]);
 
   const statusToneClass = (status?: string): string => {
     const value = (status ?? "").toLowerCase();
@@ -330,6 +357,49 @@ export default function ClientHomePage() {
       if (index < fallbackIndex) return { ...item, phase: "done" };
       if (index === fallbackIndex) return { ...item, phase: "active" };
       return { ...item, phase: "pending" };
+    });
+  };
+
+  /**
+   * 将时间字符串格式化为“yyyy/MM/dd HH:mm:ss”。
+   */
+  const formatDateTime = (value?: string): string => {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString("zh-CN", { hour12: false });
+  };
+
+  /**
+   * 状态值转中文文案（用于状态变更日志）。
+   */
+  const statusLabel = (value?: string): string => {
+    return orderStatusText(value);
+  };
+
+  /**
+   * 构建物流状态变更记录（按时间升序，并补充时间段信息）。
+   */
+  const buildLogisticsTransitions = (
+    records: OrderItem["logisticsRecords"] | undefined,
+  ): Array<{
+    fromStatus?: string;
+    toStatus?: string;
+    remark: string;
+    changedAt: string;
+    periodText: string;
+  }> => {
+    const normalized = [...(records ?? [])].sort(
+      (a, b) => new Date(a.changedAt).getTime() - new Date(b.changedAt).getTime(),
+    );
+    return normalized.map((record, index) => {
+      const next = normalized[index + 1];
+      const start = formatDateTime(record.changedAt);
+      const end = next ? formatDateTime(next.changedAt) : "至今";
+      return {
+        ...record,
+        periodText: `${start} ~ ${end}`,
+      };
     });
   };
 
@@ -888,8 +958,8 @@ export default function ClientHomePage() {
 
             {!hasQueried ? (
               <EmptyStateCard
-                title="请选择条件后查询"
-                description="当前已展开搜索框，请先设置搜索条件，再点击“执行查询”显示订单。"
+                title="正在加载订单"
+                description="已自动为你加载“全部订单”，你也可调整条件后点击“执行查询”。"
               />
             ) : queriedOrders.length === 0 ? (
               <EmptyStateCard title="无匹配订单" description="可调整查询条件后重新查询。" />
@@ -1071,7 +1141,7 @@ export default function ClientHomePage() {
                   gap: 8,
                 }}
               >
-                {item.logisticsRecords?.map((record, index) => (
+                {buildLogisticsTransitions(item.logisticsRecords).map((record, index) => (
                   <div
                     key={`${item.id}-${record.changedAt}-${index}`}
                     style={{
@@ -1084,8 +1154,12 @@ export default function ClientHomePage() {
                     }}
                   >
                     <div style={{ marginBottom: 4, fontWeight: 600 }}>
-                      时间：{new Date(record.changedAt).toLocaleString("zh-CN", { hour12: false })}
+                      状态变更：{statusLabel(record.fromStatus)}
+                      {" -> "}
+                      {statusLabel(record.toStatus)}
                     </div>
+                    <div style={{ marginBottom: 4 }}>变更时间：{formatDateTime(record.changedAt)}</div>
+                    <div style={{ marginBottom: 4 }}>时间段：{record.periodText}</div>
                     <div>物流信息：{record.remark}</div>
                   </div>
                 ))}
