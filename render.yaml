@@ -13,17 +13,13 @@ services:
       - key: AUTH_SECRET
         sync: false
       - key: SQLITE_PATH
-        value: /var/data/dev.sqlite
+        value: /tmp/dev.sqlite
       - key: DEEPSEEK_API_KEY
         sync: false
       - key: DEEPSEEK_MODEL
         value: deepseek-chat
       - key: DEEPSEEK_API_BASE_URL
         value: https://api.deepseek.com/chat/completions
-    disk:
-      name: api-data
-      mountPath: /var/data
-      sizeGB: 1
 
   - type: web
     name: xiangtai-web
