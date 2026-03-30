@@ -17,33 +17,61 @@
 
 ## 运行要求
 
-- Node.js 20+
+- **Node.js 22+**（后端使用 `node:sqlite`）
 - npm
+
+## 一键安装依赖（推荐）
+
+在**仓库根目录**执行：
+
+```bash
+npm install
+```
+
+会安装根目录的 `tsx`，并自动执行 `apps/web` 下的 `npm install`（`postinstall`）。
 
 ## 启动方式
 
 ### 1) 启动后端（端口 3001）
 
-```bash
-cd "/Users/liuxiong/Desktop/物流网站制作/MyWebSite"
-export DEEPSEEK_API_KEY="sk-你的真实key"
-export DEEPSEEK_MODEL="deepseek-chat"
-export DEEPSEEK_API_BASE_URL="https://api.deepseek.com/chat/completions"
-export AUTH_SECRET="请替换为至少32位随机密钥"
-npx tsx apps/api/src/main.ts
+在仓库根目录，PowerShell 示例：
+
+```powershell
+$env:AUTH_SECRET="请替换为至少32位随机密钥"
+$env:DEEPSEEK_API_KEY="sk-你的真实key"
+$env:DEEPSEEK_MODEL="deepseek-chat"
+$env:DEEPSEEK_API_BASE_URL="https://api.deepseek.com/chat/completions"
+npm run dev:api
 ```
 
 ### 2) 启动前端（端口 3000）
 
+再开一个终端，在仓库根目录：
+
 ```bash
-cd "/Users/liuxiong/Desktop/物流网站制作/MyWebSite/apps/web"
-npm install
-npm run dev
+npm run dev:web
 ```
 
-访问：
+访问：`http://127.0.0.1:3000/`
 
-- `http://127.0.0.1:3000/`
+### 3) 让同一局域网内其他人打开（临时）
+
+**推荐（自动填本机 IP）**：在一个终端先启动 API（`npm run dev:api`），另一个终端在仓库根目录执行：
+
+```bash
+npm run dev:web:lan
+```
+
+**手动**：查本机局域网 IP（例如 `192.168.1.100`），设置前端能访问的 API 地址，并监听所有网卡：
+
+```powershell
+$env:NEXT_PUBLIC_API_BASE_URL="http://192.168.1.100:3001"
+npm run dev:web:public
+```
+
+他人用浏览器打开：`http://你的局域网IP:3000`（防火墙需放行 3000、3001）。
+
+**公网任意人访问**请用云服务器或 Docker，见 [docs/deploy-china.md](docs/deploy-china.md)。
 
 ## 登录与鉴权
 
