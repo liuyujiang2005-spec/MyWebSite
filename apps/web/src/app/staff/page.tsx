@@ -16,7 +16,6 @@ import {
   patchStaffShipmentOrderBundle,
   repairStaffShipmentOrderLinks,
   type RepairStaffShipmentOrderLinksResult,
-  setStaffOrderReceivable,
   setStaffOrderPayment,
   setStaffShipmentContainer,
   type OrderItem,
@@ -605,18 +604,6 @@ export default function StaffHomePage() {
       return next;
     });
   };
-  const [receivablePatch, setReceivablePatch] = useState({
-    orderId: "",
-    receivableAmountCny: "",
-    receivableCurrency: "CNY" as "CNY" | "THB",
-  });
-  const [paymentPatch, setPaymentPatch] = useState({
-    orderId: "",
-    paymentStatus: "paid" as "paid" | "unpaid",
-    proofFileName: "",
-    proofMime: "",
-    proofBase64: "",
-  });
   const [sizeDraft, setSizeDraft] = useState({
     lengthCm: "",
     widthCm: "",
@@ -1207,72 +1194,6 @@ export default function StaffHomePage() {
     }
   };
 
-  const patchReceivableAmount = async () => {
-    const orderId = receivablePatch.orderId.trim();
-    const amount = Number(receivablePatch.receivableAmountCny.trim());
-    if (!orderId) {
-      setMessage("请先填写需要补录金额的订单号。");
-      return;
-    }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage("应收金额必须大于 0。");
-      return;
-    }
-    setLoading(true);
-    setMessage("");
-    try {
-      const result = await setStaffOrderReceivable({
-        orderId,
-        receivableAmountCny: amount,
-        receivableCurrency: receivablePatch.receivableCurrency,
-      });
-      setToast("应收金额已更新");
-      setMessage(
-        `订单 ${result.orderId} 应收金额已更新为 ${result.receivableCurrency} ${result.receivableAmountCny.toFixed(2)}`,
-      );
-      setReceivablePatch((v) => ({ ...v, receivableAmountCny: "" }));
-      await loadPageData();
-    } catch (error) {
-      const text = error instanceof Error ? error.message : "更新失败";
-      setMessage(`更新失败：${text}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const patchPaymentStatus = async () => {
-    const orderId = paymentPatch.orderId.trim();
-    if (!orderId) {
-      setMessage("请先填写需要确认付款的订单号。");
-      return;
-    }
-    if (paymentPatch.paymentStatus === "paid") {
-      if (!paymentPatch.proofFileName || !paymentPatch.proofMime || !paymentPatch.proofBase64) {
-        setMessage("确认已付款必须上传流水单凭证（文件）。");
-        return;
-      }
-    }
-    setLoading(true);
-    setMessage("");
-    try {
-      const result = await setStaffOrderPayment({
-        orderId,
-        paymentStatus: paymentPatch.paymentStatus,
-        proofFileName: paymentPatch.paymentStatus === "paid" ? paymentPatch.proofFileName : undefined,
-        proofMime: paymentPatch.paymentStatus === "paid" ? paymentPatch.proofMime : undefined,
-        proofBase64: paymentPatch.paymentStatus === "paid" ? paymentPatch.proofBase64 : undefined,
-      });
-      setToast("付款状态已更新");
-      setMessage(`订单 ${result.orderId} 付款状态已更新为 ${result.paymentStatus === "paid" ? "已付款" : "待付款"}`);
-      await loadPageData();
-    } catch (error) {
-      const text = error instanceof Error ? error.message : "更新失败";
-      setMessage(`更新失败：${text}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const confirmPrealertEdit = (orderId: string) => {
     const draft = prealertEditDrafts[orderId];
     if (!draft) {
@@ -1517,7 +1438,7 @@ export default function StaffHomePage() {
   return (
     <RoleShell allowedRole="staff" title="员工工作台">
       <p style={{ color: "#4b5563", marginBottom: 16 }}>
-        员工可创建订单、查看运单、并按状态流转规则更新状态。
+        员工可创建订单、查看运单列表中的订单信息（只读），并按状态流转规则更新物流状态；订单金额、付款及产品图（已审核订单）请在管理端维护。
       </p>
 
       <section
@@ -1535,150 +1456,19 @@ export default function StaffHomePage() {
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <h2 style={{ margin: 0, fontSize: 18, color: "#111827" }}>账单管理（业务板块）</h2>
-          <div style={{ fontSize: 12, color: "#64748b" }}>
-            金额/付款状态仅员工确认后对客户生效
-          </div>
         </div>
-
-        <div style={{ display: "grid", gap: 12 }}>
-          <div
-            style={{
-              border: "1px solid #fed7aa",
-              borderRadius: 12,
-              padding: 12,
-              background: "#fff7ed",
-            }}
-          >
-            <div style={{ fontWeight: 800, marginBottom: 8, color: "#9a3412" }}>已审核订单补录最终应收金额</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8 }}>
-              <input
-                value={receivablePatch.orderId}
-                onChange={(e) => setReceivablePatch((v) => ({ ...v, orderId: e.target.value }))}
-                placeholder="订单号（例如 o_1771783226942）"
-                style={orderCreateInputStyle}
-              />
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={receivablePatch.receivableAmountCny}
-                onChange={(e) => setReceivablePatch((v) => ({ ...v, receivableAmountCny: e.target.value }))}
-                placeholder="最终应收金额"
-                style={orderCreateInputStyle}
-              />
-              <select
-                value={receivablePatch.receivableCurrency}
-                onChange={(e) =>
-                  setReceivablePatch((v) => ({
-                    ...v,
-                    receivableCurrency: e.target.value === "THB" ? "THB" : "CNY",
-                  }))
-                }
-                style={orderCreateInputStyle}
-              >
-                <option value="CNY">币种：CNY</option>
-                <option value="THB">币种：THB</option>
-              </select>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => void patchReceivableAmount()}
-                style={{
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "10px 14px",
-                  color: "#fff",
-                  background: "#9a3412",
-                  fontWeight: 700,
-                }}
-              >
-                保存应收金额
-              </button>
-            </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: "#9a3412" }}>
-              用于历史订单/已审核订单补录金额；新预报单请在审核通过前填写“最终应收金额”。
-            </div>
-          </div>
-
-          <div
-            style={{
-              border: "1px solid #bbf7d0",
-              borderRadius: 12,
-              padding: 12,
-              background: "#f0fdf4",
-            }}
-          >
-            <div style={{ fontWeight: 800, marginBottom: 8, color: "#166534" }}>
-              账单付款状态确认（员工权限，需上传流水单）
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8 }}>
-              <input
-                value={paymentPatch.orderId}
-                onChange={(e) => setPaymentPatch((v) => ({ ...v, orderId: e.target.value }))}
-                placeholder="订单号（例如 o_1771783226942）"
-                style={orderCreateInputStyle}
-              />
-              <select
-                value={paymentPatch.paymentStatus}
-                onChange={(e) =>
-                  setPaymentPatch((v) => ({
-                    ...v,
-                    paymentStatus: e.target.value === "unpaid" ? "unpaid" : "paid",
-                  }))
-                }
-                style={orderCreateInputStyle}
-              >
-                <option value="paid">已付款</option>
-                <option value="unpaid">待付款</option>
-              </select>
-              <input
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) {
-                    setPaymentPatch((v) => ({ ...v, proofFileName: "", proofMime: "", proofBase64: "" }));
-                    return;
-                  }
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    const result = typeof reader.result === "string" ? reader.result : "";
-                    const base64 = result.includes(",") ? result.split(",").pop() ?? "" : "";
-                    setPaymentPatch((v) => ({
-                      ...v,
-                      proofFileName: file.name,
-                      proofMime: file.type || "application/octet-stream",
-                      proofBase64: base64,
-                    }));
-                  };
-                  reader.onerror = () => {
-                    setMessage("读取流水单文件失败，请重试或更换文件。");
-                  };
-                  reader.readAsDataURL(file);
-                }}
-                style={orderCreateInputStyle}
-              />
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => void patchPaymentStatus()}
-                style={{
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "10px 14px",
-                  color: "#fff",
-                  background: "#166534",
-                  fontWeight: 700,
-                }}
-              >
-                保存付款状态
-              </button>
-            </div>
-            <div style={{ marginTop: 8, fontSize: 12, color: "#166534" }}>
-              客户端账单会按“待付款/已付款”分类展示；确认已付款必须上传流水单凭证。
-              {paymentPatch.proofFileName ? `（已选择：${paymentPatch.proofFileName}）` : ""}
-            </div>
-          </div>
+        <div
+          style={{
+            border: "1px solid #e2e8f0",
+            borderRadius: 12,
+            padding: 14,
+            background: "#f8fafc",
+            color: "#475569",
+            fontSize: 14,
+            lineHeight: 1.6,
+          }}
+        >
+          应收金额、付款状态与已审核订单的产品图维护已调整为<strong>仅管理员</strong>在管理端操作。员工端运单列表中的订单信息为<strong>只读</strong>展示。
         </div>
       </section>
 
@@ -2654,7 +2444,7 @@ export default function StaffHomePage() {
           <div>
             <h2 style={{ margin: 0, fontSize: 18, color: "#111827" }}>运单列表</h2>
             <p style={{ margin: "6px 0 0", fontSize: 12, color: "#64748b" }}>
-              表格展示运单号、用户、状态、加收金额、运输方式、发货时间、件重体、仓库与地址；点击「编辑」或 + 展开维护产品图与跳转状态更新。
+              表格展示运单号、用户、状态、加收金额、运输方式、发货时间、件重体、仓库与地址；点击「查看」或 + 展开查看详情与物流轨迹。
             </p>
           </div>
           <button
@@ -3028,7 +2818,7 @@ export default function StaffHomePage() {
                                 marginRight: 8,
                               }}
                             >
-                              编辑
+                              查看
                             </button>
                             <button
                               type="button"
@@ -3050,7 +2840,9 @@ export default function StaffHomePage() {
                           <tr>
                             <td colSpan={14} style={{ padding: 0, background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
                               <div style={{ padding: 14 }}>
-                                <div style={{ fontWeight: 700, marginBottom: 12, color: "#0f172a" }}>运单编辑</div>
+                                <div style={{ fontWeight: 700, marginBottom: 12, color: "#0f172a" }}>
+                                  {item.canEdit ? "运单编辑" : "运单详情（只读）"}
+                                </div>
                                 {(() => {
                                   const draft = shipmentOrderEditDrafts[item.id] ?? buildShipmentOrderEditDraft(item);
                                   const formDisabled = loading || !item.canEdit;
@@ -3525,45 +3317,49 @@ export default function StaffHomePage() {
                                   />
                                 ) : null}
                                 <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                  <button
-                                    type="button"
-                                    disabled={loading || !item.canEdit || !item.orderId}
-                                    onClick={() => void saveShipmentOrderEdit(item.id)}
-                                    style={{
-                                      border: "none",
-                                      borderRadius: 8,
-                                      padding: "8px 14px",
-                                      color: "#fff",
-                                      background: item.canEdit && item.orderId ? "#059669" : "#94a3b8",
-                                      cursor: item.canEdit && item.orderId ? "pointer" : "not-allowed",
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    保存订单信息
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={loading || !item.canEdit}
-                                    onClick={() => {
-                                      setActiveSection("staff-status-update");
-                                      window.location.hash = "staff-status-update";
-                                      setStatusSearch((prev) => ({ ...prev, batchNo: item.batchNo ?? "" }));
-                                      setStatusHasSearched(true);
-                                      setEditingShipmentId(item.id);
-                                      setStatusEditDraft({ toStatus: toLogisticsStatus(item.currentStatus), remark: "" });
-                                    }}
-                                    style={{
-                                      border: "none",
-                                      borderRadius: 8,
-                                      padding: "8px 14px",
-                                      color: "#fff",
-                                      background: item.canEdit ? "#1e3a8a" : "#94a3b8",
-                                      cursor: item.canEdit ? "pointer" : "not-allowed",
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    去修改物流状态
-                                  </button>
+                                  {item.canEdit ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        disabled={loading || !item.orderId}
+                                        onClick={() => void saveShipmentOrderEdit(item.id)}
+                                        style={{
+                                          border: "none",
+                                          borderRadius: 8,
+                                          padding: "8px 14px",
+                                          color: "#fff",
+                                          background: item.orderId ? "#059669" : "#94a3b8",
+                                          cursor: item.orderId ? "pointer" : "not-allowed",
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        保存订单信息
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={loading}
+                                        onClick={() => {
+                                          setActiveSection("staff-status-update");
+                                          window.location.hash = "staff-status-update";
+                                          setStatusSearch((prev) => ({ ...prev, batchNo: item.batchNo ?? "" }));
+                                          setStatusHasSearched(true);
+                                          setEditingShipmentId(item.id);
+                                          setStatusEditDraft({ toStatus: toLogisticsStatus(item.currentStatus), remark: "" });
+                                        }}
+                                        style={{
+                                          border: "none",
+                                          borderRadius: 8,
+                                          padding: "8px 14px",
+                                          color: "#fff",
+                                          background: "#1e3a8a",
+                                          cursor: "pointer",
+                                          fontWeight: 600,
+                                        }}
+                                      >
+                                        去修改物流状态
+                                      </button>
+                                    </>
+                                  ) : null}
                                   <button
                                     type="button"
                                     disabled={loading}

@@ -75,6 +75,12 @@ const cardStyle = {
   fontSize: 14,
 };
 
+const WAREHOUSE_LABEL_MAP: Record<string, string> = {
+  wh_yiwu_01: "义乌仓",
+  wh_guangzhou_01: "广州仓",
+  wh_dongguan_01: "东莞仓",
+};
+
 export default function AdminHomePage() {
   const [session, setSession] = useState<MockSession>(DEFAULT_SESSIONS.client);
   const [loading, setLoading] = useState(false);
@@ -115,6 +121,37 @@ export default function AdminHomePage() {
   const [memoryFilterSessionId, setMemoryFilterSessionId] = useState("");
   const [memoryFilterUserId, setMemoryFilterUserId] = useState("");
   const [activeSection, setActiveSection] = useState<(typeof SECTION_IDS)[number]>("overview");
+
+  /**
+   * 后台统一运输方式文案。
+   */
+  const transportModeLabel = (mode?: string) => ((mode ?? "").toLowerCase() === "sea" ? "海运" : "陆运");
+
+  /**
+   * 后台统一运单状态文案。
+   */
+  const shipmentStatusLabel = (status?: string) => {
+    const value = (status ?? "").toLowerCase();
+    if (!value) return "—";
+    if (value === "created") return "已创建";
+    if (value === "pickedup") return "已揽收";
+    if (value === "inwarehousecn" || value === "receivedcn") return "国内仓已收货";
+    if (value === "customspending") return "报关中";
+    if (value === "intransit") return "运输中";
+    if (value === "customsth") return "清关中";
+    if (value === "warehouseth") return "泰国仓处理中";
+    if (value === "outfordelivery") return "派送中";
+    if (value === "delivered") return "已签收";
+    if (value === "returned") return "已退回";
+    if (value === "cancelled") return "已取消";
+    if (value === "exception") return "异常件";
+    return status ?? "—";
+  };
+
+  /**
+   * 后台统一仓库文案。
+   */
+  const warehouseLabel = (warehouseId?: string) => WAREHOUSE_LABEL_MAP[warehouseId ?? ""] ?? warehouseId ?? "—";
 
   /**
    * 看板状态分布：用于状态卡片与柱状图展示。
@@ -1017,46 +1054,50 @@ export default function AdminHomePage() {
                 </div>
               </div>
             ) : null}
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 1180 }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid #e2e8f0", textAlign: "left" }}>
-                  <th style={{ padding: "8px 6px" }}>订单号</th>
-                  <th style={{ padding: "8px 6px" }}>客户</th>
-                  <th style={{ padding: "8px 6px" }}>品名</th>
-                  <th style={{ padding: "8px 6px" }}>运输方式</th>
-                  <th style={{ padding: "8px 6px" }}>审批状态</th>
-                  <th style={{ padding: "8px 6px" }}>产品图</th>
-                  <th style={{ padding: "8px 6px" }}>创建时间</th>
-                  <th style={{ padding: "8px 6px" }}>操作</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>运单号</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>运单所属用户</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>运单状态</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>加收金额</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>运输方式</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>发货时间</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>总件数</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>总重量</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>总体积</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>计费体积</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>所属仓库</th>
+                  <th style={{ padding: "10px 8px", minWidth: 120 }}>收货地址</th>
+                  <th style={{ padding: "10px 8px", whiteSpace: "nowrap" }}>操作</th>
                 </tr>
               </thead>
               <tbody>
                 {orderList.map((o) => (
                   <tr key={o.id} style={{ borderBottom: "1px solid #e2e8f0" }}>
-                    <td style={{ padding: "8px 6px" }}>{o.id}</td>
-                    <td style={{ padding: "8px 6px" }}>{o.clientName ?? o.clientId}</td>
-                    <td style={{ padding: "8px 6px" }}>{o.itemName}</td>
-                    <td style={{ padding: "8px 6px" }}>{o.transportMode}</td>
-                    <td style={{ padding: "8px 6px" }}>{o.approvalStatus}</td>
-                    <td style={{ padding: "8px 6px" }}>
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-                        {(o.productImages?.length ?? 0) === 0 ? (
-                          <span style={{ color: "#94a3b8" }}>—</span>
-                        ) : (
-                          o.productImages?.map((img) => (
-                            <img
-                              key={img.id}
-                              src={`data:${img.mime};base64,${img.contentBase64}`}
-                              alt=""
-                              title={img.fileName}
-                              style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 4, border: "1px solid #e2e8f0" }}
-                            />
-                          ))
-                        )}
-                      </div>
+                    <td style={{ padding: "8px 6px", fontWeight: 600, color: "#1e3a8a", whiteSpace: "nowrap" }}>
+                      {o.trackingNo ?? o.id}
                     </td>
-                    <td style={{ padding: "8px 6px", color: "#64748b" }}>{o.createdAt.slice(0, 16)}</td>
-                    <td style={{ padding: "8px 6px" }}>
+                    <td style={{ padding: "8px 6px", color: "#334155" }}>{o.clientName ?? o.clientId ?? "—"}</td>
+                    <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{shipmentStatusLabel(o.currentStatus)}</td>
+                    <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>
+                      {o.receivableAmountCny != null
+                        ? `${o.receivableCurrency === "THB" ? "THB" : "CNY"} ${o.receivableAmountCny.toFixed(2)}`
+                        : "0"}
+                    </td>
+                    <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{transportModeLabel(o.transportMode)}</td>
+                    <td style={{ padding: "8px 6px", whiteSpace: "nowrap", color: "#64748b" }}>
+                      {o.shipDate ?? o.createdAt.slice(0, 10)}
+                    </td>
+                    <td style={{ padding: "8px 6px" }}>{o.packageCount}</td>
+                    <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{o.weightKg ?? "—"}</td>
+                    <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{o.volumeM3 ?? "—"}</td>
+                    <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{o.volumeM3 ?? "—"}</td>
+                    <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>{warehouseLabel(o.warehouseId)}</td>
+                    <td style={{ padding: "8px 6px", color: "#475569", fontSize: 12, maxWidth: 160 }} title={o.receiverAddressTh ?? ""}>
+                      {o.receiverAddressTh ?? "—"}
+                    </td>
+                    <td style={{ padding: "8px 6px", whiteSpace: "nowrap" }}>
                       <button
                         type="button"
                         onClick={() => startEditOrder(o)}

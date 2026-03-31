@@ -530,7 +530,8 @@ export function registerShipmentRoutes(app: MinimalHttpApp, db: DatabaseSync): v
       receivableCurrency: r.receivable_currency ?? undefined,
       paymentStatus: r.payment_status === "paid" ? "paid" : "unpaid",
       packageUnit: (r.order_package_unit === "bag" ? "bag" : "box") as "bag" | "box",
-      canEdit: auth.role === "admin" || editableWarehouses.includes(permissionWarehouseId),
+      /** 订单级字段仅管理员可改；员工端仅可查看列表。 */
+      canEdit: auth.role === "admin",
       productImages: r.linked_order_id ? imageMap.get(r.linked_order_id) ?? [] : [],
     };
     });
@@ -638,7 +639,7 @@ export function registerShipmentRoutes(app: MinimalHttpApp, db: DatabaseSync): v
    * 请求体可选 `{ shipmentId }`：仅修复该运单，便于列表页「尝试修复关联」定向处理。
    */
   app.post("/staff/shipments/repair-order-links", async (req, res) => {
-    const auth = requireRole(req, res, ["staff", "admin"]);
+    const auth = requireRole(req, res, ["admin"]);
     if (!auth) return;
     const body = (req.body ?? {}) as { shipmentId?: string };
     const shipmentId = body.shipmentId?.trim();

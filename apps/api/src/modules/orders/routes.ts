@@ -246,7 +246,7 @@ export function registerOrderRoutes(app: MinimalHttpApp, db: DatabaseSync): void
   });
 
   app.post("/staff/orders/set-receivable", async (req, res) => {
-    const auth = requireRole(req, res, ["staff", "admin"]);
+    const auth = requireRole(req, res, ["admin"]);
     if (!auth) return;
 
     const body = (req.body ?? {}) as {
@@ -299,7 +299,7 @@ export function registerOrderRoutes(app: MinimalHttpApp, db: DatabaseSync): void
   });
 
   app.post("/staff/orders/set-payment", async (req, res) => {
-    const auth = requireRole(req, res, ["staff", "admin"]);
+    const auth = requireRole(req, res, ["admin"]);
     if (!auth) return;
 
     const body = (req.body ?? {}) as {
@@ -725,10 +725,14 @@ export function registerOrderRoutes(app: MinimalHttpApp, db: DatabaseSync): void
       return;
     }
     const order = db
-      .prepare("SELECT id, warehouse_id FROM orders WHERE id = ? AND company_id = ?")
-      .get(orderId, auth.companyId) as { id: string; warehouse_id: string } | undefined;
+      .prepare("SELECT id, warehouse_id, approval_status FROM orders WHERE id = ? AND company_id = ?")
+      .get(orderId, auth.companyId) as { id: string; warehouse_id: string; approval_status: string } | undefined;
     if (!order) {
       fail(res, 404, "NOT_FOUND", "order not found");
+      return;
+    }
+    if (auth.role === "staff" && order.approval_status !== "pending") {
+      fail(res, 403, "FORBIDDEN", "staff can only manage product images for pending prealerts");
       return;
     }
     if (!staffCanEditOrderWarehouse(db, auth, order.warehouse_id)) {
@@ -775,15 +779,19 @@ export function registerOrderRoutes(app: MinimalHttpApp, db: DatabaseSync): void
     const row = db
       .prepare(
         `
-        SELECT i.id, o.warehouse_id
+        SELECT i.id, o.warehouse_id, o.approval_status
         FROM order_product_images i
         JOIN orders o ON o.id = i.order_id AND o.company_id = i.company_id
         WHERE i.id = ? AND i.company_id = ?
         `,
       )
-      .get(id, auth.companyId) as { id: string; warehouse_id: string } | undefined;
+      .get(id, auth.companyId) as { id: string; warehouse_id: string; approval_status: string } | undefined;
     if (!row) {
       fail(res, 404, "NOT_FOUND", "image not found");
+      return;
+    }
+    if (auth.role === "staff" && row.approval_status !== "pending") {
+      fail(res, 403, "FORBIDDEN", "staff can only manage product images for pending prealerts");
       return;
     }
     if (!staffCanEditOrderWarehouse(db, auth, row.warehouse_id)) {
@@ -798,7 +806,7 @@ export function registerOrderRoutes(app: MinimalHttpApp, db: DatabaseSync): void
    * 员工按运单维度一次性更新关联订单与运单的基础信息（与列表「订单详情」编辑一致）。
    */
   app.post("/staff/orders/patch-shipment-bundle", async (req, res) => {
-    const auth = requireRole(req, res, ["staff", "admin"]);
+    const auth = requireRole(req, res, ["admin"]);
     if (!auth) return;
 
     const body = (req.body ?? {}) as {

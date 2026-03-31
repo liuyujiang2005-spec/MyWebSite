@@ -220,6 +220,10 @@ export interface AdminOrderItem {
   packageUnit: string;
   weightKg: number | null;
   volumeM3: number | null;
+  receiverAddressTh?: string;
+  trackingNo?: string;
+  currentStatus?: string;
+  canEdit?: boolean;
   receivableAmountCny?: number | null;
   receivableCurrency?: "CNY" | "THB";
   shipDate: string | null;

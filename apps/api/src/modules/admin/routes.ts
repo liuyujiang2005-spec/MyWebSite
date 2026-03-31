@@ -93,11 +93,13 @@ export function registerAdminRoutes(app: MinimalHttpApp, db: DatabaseSync): void
         SELECT
           o.id, o.client_id, u.name as client_name, o.warehouse_id, o.order_no, o.item_name, o.transport_mode,
           o.domestic_tracking_no, o.batch_no, o.approval_status, o.product_quantity, o.package_count, o.package_unit,
-          o.weight_kg, o.volume_m3, o.receivable_amount_cny, o.receivable_currency,
+          o.weight_kg, o.volume_m3, o.receiver_address_th, o.receivable_amount_cny, o.receivable_currency,
           o.payment_status, o.paid_at, o.paid_by,
-          o.ship_date, o.status_group, o.created_at, o.updated_at
+          o.ship_date, o.status_group, o.created_at, o.updated_at,
+          s.tracking_no, s.current_status
         FROM orders o
         LEFT JOIN users u ON u.id = o.client_id
+        LEFT JOIN shipments s ON s.order_id = o.id AND s.company_id = o.company_id
         WHERE o.company_id = ?
         ORDER BY o.created_at DESC
       `)
@@ -117,6 +119,7 @@ export function registerAdminRoutes(app: MinimalHttpApp, db: DatabaseSync): void
       package_unit: string;
       weight_kg: number | null;
       volume_m3: number | null;
+      receiver_address_th: string | null;
       receivable_amount_cny: number | null;
       receivable_currency: string | null;
       payment_status: string | null;
@@ -126,6 +129,8 @@ export function registerAdminRoutes(app: MinimalHttpApp, db: DatabaseSync): void
       status_group: string;
       created_at: string;
       updated_at: string;
+      tracking_no: string | null;
+      current_status: string | null;
     }>;
 
     const adminOrderItems = rows.map((r) => ({
@@ -144,6 +149,7 @@ export function registerAdminRoutes(app: MinimalHttpApp, db: DatabaseSync): void
       packageUnit: r.package_unit,
       weightKg: r.weight_kg,
       volumeM3: r.volume_m3,
+      receiverAddressTh: r.receiver_address_th ?? undefined,
       receivableAmountCny: r.receivable_amount_cny,
       receivableCurrency: r.receivable_currency ?? "CNY",
       paymentStatus: r.payment_status ?? "unpaid",
@@ -153,6 +159,9 @@ export function registerAdminRoutes(app: MinimalHttpApp, db: DatabaseSync): void
       statusGroup: r.status_group,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
+      trackingNo: r.tracking_no ?? undefined,
+      currentStatus: r.current_status ?? undefined,
+      canEdit: true,
     }));
     const adminOrderIds = adminOrderItems.map((item) => item.id);
     const adminImageMap = loadProductImagesForOrders(db, auth.companyId, adminOrderIds);
